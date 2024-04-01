@@ -149,8 +149,7 @@ import numpy as np
 
 
 def get_object(
-    image: np.ndarray, mask: np.ndarray, dil_iter: int = 10,
-    show_steps: bool = False
+    image: np.ndarray, mask: np.ndarray, dil_iter: int = 10, show_steps: bool = False
 ) -> np.ndarray:
     """Get the object from the image using the mask and angle.
 
@@ -180,7 +179,9 @@ def get_object(
     rotated_mask = cv2.warpAffine(mask, rot_matrix, (image.shape[1], image.shape[0]))
 
     # Dilate the mask to make sure the whole object is included
-    dilated_mask = cv2.dilate(rotated_mask, np.ones((3, 3), np.uint8), iterations=dil_iter)
+    dilated_mask = cv2.dilate(
+        rotated_mask, np.ones((3, 3), np.uint8), iterations=dil_iter
+    )
 
     # Get the bounding box of the dilated mask
     rect = cv2.boundingRect(dilated_mask)
@@ -206,7 +207,7 @@ def get_object(
             elif y == 0:
                 # Touches the top border so crop from the top
                 cropped_image = cropped_image[h:, :]
-            
+
             if x + w == img_x:
                 # Touches the right border so crop from the right
                 cropped_image = cropped_image[:, :w]
@@ -229,7 +230,7 @@ def get_object(
             #     cropped_image = cropped_image[:h, :w]
             else:
                 continue
-        
+
     if show_steps:
         images = {
             "Original image": image,
@@ -345,20 +346,20 @@ def calculate_profile_psd(
 
     # The ler is the square root of the integral of the PSD
     # over the frequency range
-    ler = np.sqrt(np.trapz(psd, freq))
+    roughness = np.sqrt(np.trapz(psd, freq))
 
     if show_steps:
         plt.plot(freq, psd)
-        plt.title("LER PSD")
         plt.xlabel("Wave number (1/nm)")
         plt.ylabel("PSD")
 
         # Use loglog scale
+        plt.title("Roughness PSD: {:.2f}".format(roughness))
         plt.xscale("log")
         plt.yscale("log")
         plt.show()
 
-    return psd, freq, ler
+    return psd, freq, roughness
 
 
 # def fit_gaus_step(
@@ -468,9 +469,13 @@ def calculate_profile_psd(
 
 
 def fit_block_step(
-    data: np.ndarray, invert_step: bool = False, show_steps: bool = False
+    data: np.ndarray, invert_step: bool = False, show_steps: bool = False, verbose=False
 ) -> tuple[np.ndarray, float, float]:
     """Fit a block step function to the data.
+
+    While the function works most of the time it is not perfect. The function
+    will raise a warning if the fit is not correct so make sure to catch the
+    exceptions if you are analyzing larger sample sets
 
     Parameters
     ----------
@@ -481,11 +486,18 @@ def fit_block_step(
         go from 1 to 0. The default is False.
     show_steps : bool, optional
         If True, show the steps of the fitting. The default is False.
+    verbose : bool, optional
+        If True, print the warnings. The default is False.
 
     Returns
     -------
     tuple[np.ndarray, float, float]
         The fitted data and the half height on the left and right side.
+
+    Raises
+    ------
+    OptimizeWarning
+        If the fit is not correct.
     """
     if not isinstance(data, np.ndarray):
         raise ValueError("data should be a numpy array not type {}".format(type(data)))
@@ -509,20 +521,21 @@ def fit_block_step(
     # Fit the curves seperately
     if invert_step:
         # Normalize the data between 0 and 1 to make fitting easier
-        data = 1- (data - np.min(data)) / (np.max(data) - np.min(data))
+        data = 1 - (data - np.min(data)) / (np.max(data) - np.min(data))
     else:
         data = (data - np.min(data)) / (np.max(data) - np.min(data))
-        
-    
+
     popt_left, cov_left = curve_fit(step_up, np.arange(len(data)), data, p0=[1, 10, 1])
-    popt_right, cov_right = curve_fit(step_down, np.arange(len(data)), data, p0=[1, 10, 1])
+    popt_right, cov_right = curve_fit(
+        step_down, np.arange(len(data)), data, p0=[1, 10, 1]
+    )
 
     # # Check if the fit is acceptable
     # if not np.all(np.isfinite(cov_left)) or not np.all(np.isfinite(cov_right)):
     #     e = OptimizeWarning("The fit is not correct, the covariance matrix contains infinite values")
     #     print(e)
     #     raise e
-    
+
     # Fit the curves
     fit_left = step_up(np.arange(len(data)), *popt_left)
     fit_right = step_down(np.arange(len(data)), *popt_right)
@@ -532,51 +545,70 @@ def fit_block_step(
     left_min = fit_left.min()
     left_max = fit_left.max()
     half_height = (left_max - left_min) / 2
-    
+
     # Find the index with the value closest to half height
     h_left = np.argmin(np.abs(fit_left - half_height))
 
     right_min = fit_right.min()
     right_max = fit_right.max()
     half_height = (right_max - right_min) / 2
-    
+
     # Find the index with the value closest to half height
     h_right = np.argmin(np.abs(fit_right - half_height))
 
     if h_right == h_left:
         # borders are the same implicating there is no line
-        e = OptimizeWarning("The fit is not correct, left half height position is the same as the right side")
-        print(e)
+        e = OptimizeWarning(
+            "The fit is not correct, left half height position is the same as the right side"
+        )
+        if verbose:
+            print(e)
         raise e
     if h_right < 0 or h_left < 0:
         # Borders are outside the data
-        e = OptimizeWarning("The fit is not correct, left or right half height position is outside the data")
-        print(e)
+        e = OptimizeWarning(
+            "The fit is not correct, left or right half height position is outside the data"
+        )
+        if verbose:
+            print(e)
         raise e
     if h_left < int(0.025 * len(data)):
         # left half height is at the start of the data
-        e =  OptimizeWarning("The fit is not correct, left half height position is at the start of the data")
-        print(e)
+        e = OptimizeWarning(
+            "The fit is not correct, left half height position is at the start of the data"
+        )
+        if verbose:
+            print(e)
         raise e
     if h_right > int(0.975 * len(data)):
         # right half height is at the end of the data
-        e = OptimizeWarning("The fit is not correct, right half height position is at the end of the data")
-        print(e)
+        e = OptimizeWarning(
+            "The fit is not correct, right half height position is at the end of the data"
+        )
+        if verbose:
+            print(e)
         raise e
     if h_right - h_left < 10:
         # The step is too small
         e = OptimizeWarning("The fit is not correct, the step is too small")
-        print(e)
+        if verbose:
+            print(e)
         raise e
     if h_right < 0.5 * len(data):
         # The right border is on the left side of the image?
-        e = OptimizeWarning("The fit is not correct, the right border is on the left side of the image")
-        print(e)
+        e = OptimizeWarning(
+            "The fit is not correct, the right border is on the left side of the image"
+        )
+        if verbose:
+            print(e)
         raise e
     if h_left > 0.5 * len(data):
         # The left border is on the right side of the image?
-        e = OptimizeWarning("The fit is not correct, the left border is on the right side of the image")
-        print(e)
+        e = OptimizeWarning(
+            "The fit is not correct, the left border is on the right side of the image"
+        )
+        if verbose:
+            print(e)
         raise e
 
     # Normalize the fit
@@ -592,9 +624,12 @@ def fit_block_step(
     return fit, h_left, h_right
 
 
-
 def extract_profiles(
-    image: np.ndarray, accepted_failure: float = 0.20, show_steps: bool = False
+    image: np.ndarray,
+    fitter: callable = fit_block_step,
+    accepted_failure: float = 0.20,
+    show_steps: bool = False,
+    verbose: bool = False,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Extracts the intensity profiles for each column in the image.
 
@@ -602,19 +637,36 @@ def extract_profiles(
     ----------
     image : np.ndarray
         The image to extract the profiles from.
+    fitter : callable, optional
+        The function to fit the step function. The default is fit_block_step.
     accepted_failure : float, optional
         The maximum failure rate for the fitting function, by default 0.20.
     show_steps : bool, optional
         If the fitting steps should be shown, by default False.
+    verbose : bool, optional
+        If the warnings should be printed, by default False.
 
     Returns
     -------
     tuple[np.ndarray, np.ndarray, np.ndarray]
         The top edge, bottom edge and width of profile for the object.
+
+    Raises
+    ------
+    OptimizeWarning
+        If the fitting fails too often.
     """
     if not isinstance(image, np.ndarray):
         raise TypeError(
             "The image must be a numpy array not type {}".format(type(image))
+        )
+    if not len(image.shape) == 2:
+        raise ValueError(
+            "The image must be a grayscale image not shape {}".format(image.shape)
+        )
+    if not callable(fitter):
+        raise TypeError(
+            "The fitter must be a callable function not type {}".format(type(fitter))
         )
     if not isinstance(accepted_failure, float):
         raise TypeError(
@@ -626,6 +678,10 @@ def extract_profiles(
         raise TypeError(
             "The show steps must be a boolean not type {}".format(type(show_steps))
         )
+    if not isinstance(verbose, bool):
+        raise TypeError(
+            "The verbose must be a boolean not type {}".format(type(verbose))
+        )
 
     # Fit the step function
     left, right = [], []
@@ -635,7 +691,9 @@ def extract_profiles(
     for i in range(0, image.shape[1], 1):
         profile = image[:, i].transpose()
         try:
-            _, l, r = fit_block_step(profile, show_steps=False, invert_step=True)
+            _, l, r = fitter(
+                profile, show_steps=False, invert_step=True, verbose=verbose
+            )
         except (OptimizeWarning, RuntimeError) as e:
             # This is very bad practice but that is an issue for another time
             error_count += 1
@@ -652,14 +710,14 @@ def extract_profiles(
     width_array = right_array - left_array
 
     if show_steps:
-        fig, ax = plt.subplots(3, 1)
-        ax[0].plot(left_array)
-        ax[0].set_title("Left edge")
-        ax[1].plot(right_array)
-        ax[1].set_title("Right edge")
-        ax[2].plot(width_array)
-        ax[2].set_title("Width")
+        plt.subplot(121)
+        plt.plot(left_array)
+        plt.title("Left edge")
+        plt.subplot(122)
+        plt.plot(right_array)
+        plt.title("Right edge")
         plt.show()
+
 
     return left_array, right_array, width_array
 

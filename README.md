@@ -21,6 +21,9 @@ pip install .  # Install the package
 
 ## Gotchas
 
+- The code works but has not been tested a lot, make sure all the stripes
+are horizontal and crop off the ends of the lines.
+- Do NOT resize your images, only crop. Otherwise the nm/pixel factor calculated from the size bar will be wrong without giving a clear error.
 - Make it easy on yourself and keep one path for all your analyses ... otherwise you will get a different path everywhere and suddenly you are editing three different images. 
 - If you are using this code for the minor make sure to cite the source repo to prevent a possible plagiarism flag.
 

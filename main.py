@@ -10,7 +10,8 @@ from pytools_lithography.sem_analysis import (
     separate_objects,
     get_object,
     fit_block_step,
-    extract_profiles
+    extract_profiles,
+    calculate_profile_psd,
 )
 import os
 import cv2
@@ -31,8 +32,11 @@ lines_img = cv2.cvtColor(lines_img, cv2.COLOR_BGR2GRAY)
 
 # Get the seperate objects
 masks, angles = separate_objects(lines_img, show_steps=False)
-object_img = get_object(lines_img, masks[0], show_steps=True, dil_iter=50)
+object_img = get_object(lines_img, masks[0], show_steps=False, dil_iter=50)
 
 # Fit the step function for each column in the image
-extract_profiles(object_img, show_steps=True, accepted_failure=0.25)
+top, bottom, width = extract_profiles(object_img, show_steps=True, accepted_failure=0.50)
+
+# Now we can calculate the PSD
+top_psd, top_freqs = calculate_profile_psd(top, show_steps=False, dx=1)
 
