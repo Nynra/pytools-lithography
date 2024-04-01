@@ -517,11 +517,11 @@ def fit_block_step(
     popt_left, cov_left = curve_fit(step_up, np.arange(len(data)), data, p0=[1, 10, 1])
     popt_right, cov_right = curve_fit(step_down, np.arange(len(data)), data, p0=[1, 10, 1])
 
-    # Check if the fit is acceptable
-    if not np.all(np.isfinite(cov_left)) or not np.all(np.isfinite(cov_right)):
-        e = OptimizeWarning("The fit is not correct, the covariance matrix contains infinite values")
-        print(e)
-        raise e
+    # # Check if the fit is acceptable
+    # if not np.all(np.isfinite(cov_left)) or not np.all(np.isfinite(cov_right)):
+    #     e = OptimizeWarning("The fit is not correct, the covariance matrix contains infinite values")
+    #     print(e)
+    #     raise e
     
     # Fit the curves
     fit_left = step_up(np.arange(len(data)), *popt_left)
@@ -544,15 +544,38 @@ def fit_block_step(
     h_right = np.argmin(np.abs(fit_right - half_height))
 
     if h_right == h_left:
+        # borders are the same implicating there is no line
         e = OptimizeWarning("The fit is not correct, left half height position is the same as the right side")
         print(e)
         raise e
+    if h_right < 0 or h_left < 0:
+        # Borders are outside the data
+        e = OptimizeWarning("The fit is not correct, left or right half height position is outside the data")
+        print(e)
+        raise e
     if h_left < int(0.025 * len(data)):
+        # left half height is at the start of the data
         e =  OptimizeWarning("The fit is not correct, left half height position is at the start of the data")
         print(e)
         raise e
-    if h_right == len(data) - int(0.975 * len(data)):
+    if h_right > int(0.975 * len(data)):
+        # right half height is at the end of the data
         e = OptimizeWarning("The fit is not correct, right half height position is at the end of the data")
+        print(e)
+        raise e
+    if h_right - h_left < 10:
+        # The step is too small
+        e = OptimizeWarning("The fit is not correct, the step is too small")
+        print(e)
+        raise e
+    if h_right < 0.5 * len(data):
+        # The right border is on the left side of the image?
+        e = OptimizeWarning("The fit is not correct, the right border is on the left side of the image")
+        print(e)
+        raise e
+    if h_left > 0.5 * len(data):
+        # The left border is on the right side of the image?
+        e = OptimizeWarning("The fit is not correct, the left border is on the right side of the image")
         print(e)
         raise e
 
@@ -613,16 +636,16 @@ def extract_profiles(
         profile = image[:, i].transpose()
         try:
             _, l, r = fit_block_step(profile, show_steps=False, invert_step=True)
-        except OptimizeWarning:
+        except (OptimizeWarning, RuntimeError) as e:
+            # This is very bad practice but that is an issue for another time
             error_count += 1
             continue
         left.append(l)
         right.append(r)
 
     # Check if the failure rate was acceptable
-    if error_count > accepted_failure * object_img.shape[1]:
-        print("Too many errors occured during fitting. Aborting.")
-        exit()
+    if error_count > accepted_failure * image.shape[1]:
+        raise Exception("Too many errors occured during fitting. Aborting.")
 
     left_array = np.array(left)
     right_array = np.array(right)
