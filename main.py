@@ -6,7 +6,7 @@ from pytools_image_processing.utils import (
 )
 from pytools_image_processing.conversions import rgb_to_grayscale
 from pytools_image_processing.analysis import plot_intensity_profile, get_rgb_histogram
-from pytools_lithography.sem_analysis import (
+from pytools_lithography.analysis.sem_analysis import (
     separate_objects,
     get_object,
     fit_block_step,

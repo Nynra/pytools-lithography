@@ -7,7 +7,7 @@ misc
 .vscode
 old
 onedrive_thomas
-images
+images_ref
 
 # C extensions
 *.so
