@@ -142,115 +142,6 @@ def separate_objects(
     return components, angles
 
 
-def get_scale_from_bar(
-    image: np.ndarray, return_all: bool = False, method: str=  "dynamic"
-) -> tuple[float, float]:
-    """Determine the number of nm/pixel factor from the scale bar.
-
-    This function expects a cropped scale bar from the SEM in the MPD
-    lab. This is in now way a generalized function and should not be used
-    for other images. The cropped scale bar is complete bottom part of
-    the image with a horizontal cut where the image begins.
-
-    Parameters
-    ----------
-    image : np.ndarray
-        The cropped scale bar.
-    return_all : bool, optional
-        If True, return all the intermediate steps. The default is False.
-    method : str, optional
-        The method to use to determine the scale, this can be dynamic or static.
-        When dynamic is chosen the scale is determined by the number on the left
-        side of the scale bar. When static is chosen the scale is determined by
-        the number on the right side of the scale bar. The default is dynamic.
-
-        .. note::
-
-            While we are not sure the dynamic mode is probably more accurate as
-            it can round to smaller numbers and compensate for the error in the
-            resizable scale bar.
-
-    Returns
-    -------
-    tuple[float, float]
-        The scale in nm/pixel and the plus minus error.
-    """
-    if not isinstance(image, np.ndarray):
-        raise ValueError(
-            "image should be a numpy array not type {}".format(type(image))
-        )
-    if not len(image.shape) == 2:
-        raise ValueError(
-            "image should be a grayscale image not shape {}".format(image.shape)
-        )
-    if not isinstance(return_all, bool):
-        raise ValueError(
-            "return_all should be a boolean not type {}".format(type(return_all))
-        )
-    if not isinstance(method, str):
-        raise ValueError("method should be a string not type {}".format(type(method)))
-    method = method.lower()
-    if method not in ["dynamic", "static"]:
-        raise ValueError(
-            "method should be either dynamic or static not {}".format(method)
-        )
-    
-
-    # Create the OCR
-    reader = ocr.Reader(["en"], gpu=False)
-
-    # How big of a 'cut-out' do we make from the left corner in the up and right  direction
-    DYNAMIC_SCALE_IMG_DIMENSIONS = 95
-    STATIC_SCALE_IMG_DIMENSIONS = 100
-
-    if method == "dynamic":
-        # Crop a copy of the image to the size of the number
-        scale_text_img = image.copy()[:, :DYNAMIC_SCALE_IMG_DIMENSIONS]
-    elif method == "static":
-        # Crop a copy of the image to the size of the number
-        scale_text_img = image.copy()[:, -STATIC_SCALE_IMG_DIMENSIONS:]
-
-    show_images({"Scale text": scale_text_img})
-    # We use detail = 0 to just get the text, we dont care for the other info
-    scale_str = reader.readtext(scale_text_img, detail=0)
-
-    # Check if the scale str contains only numbers
-    if not scale_str.isdigit():
-        raise ValueError(
-            "The scale string should only contain numbers, it now says {}".format(
-                scale_str
-            )
-        )
-
-    scale_int = int(scale_str)
-
-    # Now we have the number, time to find out how long the bar is
-    SCALE_BAR_START = 200
-    SCALE_BAR_END = 1250
-    scale_bar_img = image[:, SCALE_BAR_START:SCALE_BAR_END]
-
-    # Use the Canny edge detection to find the edges
-    edges = cv2.Canny(scale_bar_img, 50, 150, apertureSize=3)
-    lines = cv2.HoughLinesP(
-        edges,  # Input edge image
-        1,  # Distance resolution in pixels
-        np.pi / 180,  # Angle resolution in radians
-        threshold=100,  # Min number of votes for valid line
-        minLineLength=5,  # Min allowed length of line
-        maxLineGap=10,  # Max allowed gap between line for joining them
-    )
-    bar_size = int(lines[0][0][2] - lines[0][0][0])
-
-    # Calculate the scale
-    scale = scale_int / bar_size
-    pm = (scale_int / (bar_size - 1)) - scale
-
-    if return_all:
-        return scale_str, scale_int, scale, pm
-
-    return scale, pm
-
-
 def get_object(
     image: np.ndarray, mask: np.ndarray, dil_iter: int = 10, show_steps: bool = False
 ) -> np.ndarray:
@@ -344,3 +235,231 @@ def get_object(
         show_images(images)
 
     return cropped_image
+
+
+class ImagePreProcessor:
+    """Preprocess the SEM image.
+
+    This class is used to preprocess the SEM image. It can separate the info bar
+    from the image and determine the scale of the image.
+
+    .. warning::
+
+        This is by now means a general class and should not be used for
+        images that are not from the MPD lab.
+    """
+    # Initial height guess for the info bar
+    _height = 0.10
+
+    # Bounding box of the info bar
+    _x = None
+    _y = None
+    _w = None
+    _h = None
+
+    def __init__(self, image: np.ndarray) -> ...:
+        """Initialize the ImagePreProcessor class.
+
+        Parameters
+        ----------
+        image : np.ndarray
+            The raw SEM image.
+        """
+        if not isinstance(image, np.ndarray):
+            raise ValueError(
+                "image should be a numpy array not type {}".format(type(image))
+            )
+        if not len(image.shape) == 2:
+            raise ValueError(
+                "image should be a grayscale image not shape {}".format(image.shape)
+            )
+        self._image = image
+
+    def get_scale(
+        self, method: str = "dynamic"
+    ) -> tuple[float, float]:
+        """Determine the number of nm/pixel factor from the scale bar.
+
+        This function expects a cropped scale bar from the SEM in the MPD
+        lab. This is in now way a generalized function and should not be used
+        for other images. The cropped scale bar is complete bottom part of
+        the image with a horizontal cut where the image begins.
+
+        Parameters
+        ----------
+        method : str, optional
+            The method to use to determine the scale, this can be dynamic or static.
+            When dynamic is chosen the scale is determined by the number on the left
+            side of the scale bar. When static is chosen the scale is determined by
+            the number on the right side of the scale bar. The default is dynamic.
+
+        Returns
+        -------
+        tuple[float, float]
+            The scale in nm/pixel and the plus minus error.
+        """
+        if not isinstance(method, str):
+            raise ValueError("method should be a string not type {}".format(type(method)))
+        method = method.lower()
+        if not method in ["dynamic", "static"]:
+            raise ValueError(
+                "method should be either dynamic or static not {}".format(method)
+            )
+        if not self._check_ready_to_crop():
+            self._find_info_bar()
+
+        # Get the scale from the image
+        if method == "dynamic":
+            scale, pm = self._get_dynamic_scale()
+        elif method == "static":
+            scale, pm = self._get_static_scale()
+
+        return scale, pm
+
+    def get_info_bar(self) -> np.ndarray:
+        """Get the info bar from the image.
+
+        Returns
+        -------
+        np.ndarray
+            The info bar.
+        """
+        if not self._check_ready_to_crop():
+            self._find_info_bar()
+
+        return self._image[self._y : self._y + self._h, self._x : self._x + self._w]
+
+    def get_image(self) -> np.ndarray:
+        """Get the image without the info bar.
+
+        Returns
+        -------
+        np.ndarray
+            The image without the info bar.
+        """
+        if not self._check_ready_to_crop():
+            self._find_info_bar()
+
+        return self._image[: self._y, :]
+
+    def _check_ready_to_crop(self) -> bool:
+        """Check if the info bar is found.
+
+        Returns
+        -------
+        bool
+            True if the info bar is found, False otherwise.
+        """
+        if None in [self._x, self._y, self._w, self._h]:
+            return False
+        return True
+
+    def _find_info_bar(self) -> ...:
+        """Find the info bar in the image.
+
+        The info bar is assumed to be a straight black bar at the bottom of the image.
+        The function will search for the biggest black contour at the bottom of the image
+        and use this as the info bar.
+
+        Raises
+        ------
+        ValueError
+            If no valid info bar is found in the image.
+        """
+        # Get the image dimensions
+        img_x, img_y = self._image.shape
+
+        # Get the height of the scale bar
+        scale_height = int(img_y * self._height)
+
+        # Get the scale bar from the bottom of the image
+        scale_bar = self._image[-scale_height:, :]
+
+        # Search for the biggest black contour
+        mask = cv2.inRange(scale_bar, 0, 0)
+        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        
+        if len(contours) == 0:
+            raise ValueError("No valid info bar found in the image!")
+        
+        # Get the bounding box of the biggest contours
+        x, y, w, h = cv2.boundingRect(contours[0])
+
+        # Store the bounding box of the info bar
+        self._x = x
+        self._y = img_y
+        self._w = w
+        self._h = h
+
+    def _get_dynamic_scale(self) -> tuple[float, float]:
+        """Get the scale of the image using the dynamic scale bar.
+
+        The dynamic scale is calculated by the number on the left side of the
+        scale bar and the length of the scale bar.
+
+        Returns
+        -------
+        tuple[float, float]
+            The scale in nm/pixel and the plus minus error.
+        """
+        # Create the OCR
+        reader = ocr.Reader(["en"], gpu=False)
+
+        # How big of a 'cut-out' do we make from the left corner in the up and right  direction
+        DYNAMIC_SCALE_IMG_DIMENSIONS = 95
+
+        # Crop a copy of the image to the size of the number
+        scale_text_img = self._image.copy()[:, :DYNAMIC_SCALE_IMG_DIMENSIONS]
+
+        # We use detail = 0 to just get the text, we dont care for the other info
+        scale_str = reader.readtext(scale_text_img, detail=0)[0]
+        
+        for char in scale_str:
+            if not char.isdigit():
+                scale_str = scale_str.replace(char, "")
+
+        # Check if the scale str contains only numbers
+        if not scale_str.isdigit():
+            raise ValueError(
+                "The scale string should only contain numbers, it now says {}".format(
+                    scale_str
+                )
+            )
+
+        scale_int = int(scale_str)
+
+        # Now we have the number, time to find out how long the bar is
+        SCALE_BAR_START = 200
+        SCALE_BAR_END = 1250
+        scale_bar_img = self._image[:, SCALE_BAR_START:SCALE_BAR_END]
+
+        # Use the Canny edge detection to find the edges
+        edges = cv2.Canny(scale_bar_img, 50, 150, apertureSize=3)
+        lines = cv2.HoughLinesP(
+            edges,  # Input edge image
+            1,  # Distance resolution in pixels
+            np.pi / 180,  # Angle resolution in radians
+            threshold=100,  # Min number of votes for valid line
+            minLineLength=5,  # Min allowed length of line
+            maxLineGap=10,  # Max allowed gap between line for joining them
+        )
+        bar_size = int(lines[0][0][2] - lines[0][0][0])
+
+        # Calculate the scale
+        scale = scale_int / bar_size
+        pm = (scale_int / (bar_size - 1)) - scale
+
+        return scale, pm
+
+    def _get_static_scale(self) -> tuple[float, float]:
+        """Get the scale of the image using the static scale bar.
+
+        The static scale is calculated by the number on the right side of the
+        scale bar and the width of the image.
+
+        Returns
+        -------
+        tuple[float, float]
+            The scale in nm/pixel and the plus minus error.
+        """
+        raise NotImplementedError("This function is not implemented yet")
