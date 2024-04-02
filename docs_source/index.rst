@@ -5,10 +5,9 @@ Welcome to Pytools documentation
    :maxdepth: 2
    :caption: Contents:
 
-   hardware_control/pytools_hardware_control
-   image_processing/pytools_image_processing
-   signal_processing/pytools_signal_processing
-   lithography/pytools_lithography
+   pytools_lithography.analysis
+   pytools_lithography.design
+   examples
 
 
 

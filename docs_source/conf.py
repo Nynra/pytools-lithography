@@ -20,11 +20,12 @@ release = 'v0.0.2'
 
 extensions = [
     'sphinx.ext.duration',
-    'sphinx.ext.githubpages',
-    'sphinx.ext.doctest',
-    'sphinx.ext.autodoc',
-    'sphinx.ext.autosummary',
-    'sphinx.ext.napoleon',
+    'sphinx.ext.githubpages',  # For GitHub pages rendering
+    # 'sphinx.ext.doctest',
+    'sphinx.ext.autodoc',  # For automatically generating documentation from docstrings
+    'sphinx.ext.autosummary', 
+    'sphinx.ext.napoleon', # For parsing numpy-style docstrings
+    "nbsphinx",  # For rendering Jupyter notebooks
 ]
 
 # Some config options for parsing th edocstrings
@@ -33,7 +34,7 @@ napoleon_google_docstring = False
 napoleon_include_init_with_doc = True
 napoleon_use_param = True
 napoleon_use_ivar = False
-napoleon_include_private_with_doc = True
+napoleon_include_private_with_doc = False
 
 templates_path = ['_templates']
 exclude_patterns = []
