@@ -1,7 +1,7 @@
 from unittest import TestCase
 import numpy as np
 from pytools_lithography.analysis.legacy import Analyzer, Image
-from pytools_lithography.tests.utils import get_test_img_path
+from utils import get_test_img_path
 import cv2
 
 

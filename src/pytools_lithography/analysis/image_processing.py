@@ -143,7 +143,7 @@ def separate_objects(
 
 
 def get_scale_from_bar(
-    image: np.ndarray, return_all: bool = False
+    image: np.ndarray, return_all: bool = False, method: str=  "dynamic"
 ) -> tuple[float, float]:
     """Determine the number of nm/pixel factor from the scale bar.
 
@@ -158,6 +158,17 @@ def get_scale_from_bar(
         The cropped scale bar.
     return_all : bool, optional
         If True, return all the intermediate steps. The default is False.
+    method : str, optional
+        The method to use to determine the scale, this can be dynamic or static.
+        When dynamic is chosen the scale is determined by the number on the left
+        side of the scale bar. When static is chosen the scale is determined by
+        the number on the right side of the scale bar. The default is dynamic.
+
+        .. note::
+
+            While we are not sure the dynamic mode is probably more accurate as
+            it can round to smaller numbers and compensate for the error in the
+            resizable scale bar.
 
     Returns
     -------
@@ -172,15 +183,34 @@ def get_scale_from_bar(
         raise ValueError(
             "image should be a grayscale image not shape {}".format(image.shape)
         )
+    if not isinstance(return_all, bool):
+        raise ValueError(
+            "return_all should be a boolean not type {}".format(type(return_all))
+        )
+    if not isinstance(method, str):
+        raise ValueError("method should be a string not type {}".format(type(method)))
+    method = method.lower()
+    if method not in ["dynamic", "static"]:
+        raise ValueError(
+            "method should be either dynamic or static not {}".format(method)
+        )
+    
 
     # Create the OCR
     reader = ocr.Reader(["en"], gpu=False)
 
     # How big of a 'cut-out' do we make from the left corner in the up and right  direction
-    SCALE_IMG_DIMENSIONS = 95
+    DYNAMIC_SCALE_IMG_DIMENSIONS = 95
+    STATIC_SCALE_IMG_DIMENSIONS = 100
 
-    # Crop a copy of the image to the size of the number
-    scale_text_img = image.copy()[:, :SCALE_IMG_DIMENSIONS]
+    if method == "dynamic":
+        # Crop a copy of the image to the size of the number
+        scale_text_img = image.copy()[:, :DYNAMIC_SCALE_IMG_DIMENSIONS]
+    elif method == "static":
+        # Crop a copy of the image to the size of the number
+        scale_text_img = image.copy()[:, -STATIC_SCALE_IMG_DIMENSIONS:]
+
+    show_images({"Scale text": scale_text_img})
     # We use detail = 0 to just get the text, we dont care for the other info
     scale_str = reader.readtext(scale_text_img, detail=0)
 
