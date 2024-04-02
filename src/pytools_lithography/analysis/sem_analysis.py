@@ -445,8 +445,12 @@ def extract_profiles(
         )
 
     # Fit the step function
-    left, right = [], []
-    error_count = 0
+    left, right = [], []  # The left and right edge of the object
+    error_count = 0  # The number of errors that occured during fitting
+
+    # Make sure the longest axis is on the horizontal
+    if image.shape[0] > image.shape[1]:
+        image = cv2.transpose(image)
 
     # Make a fit for each column
     for i in range(0, image.shape[1], 1):
@@ -469,6 +473,10 @@ def extract_profiles(
     left_array = np.array(left)
     right_array = np.array(right)
     width_array = right_array - left_array
+
+    # Correct the offsets so the average of the profiles is zero
+    left_array = left_array - np.mean(left_array)
+    right_array = right_array - np.mean(right_array)
 
     if show_steps:
         plt.subplot(121)

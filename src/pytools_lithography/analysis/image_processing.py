@@ -184,6 +184,9 @@ def get_object(
     # Crop the image
     cropped_image = rotated_image[y : y + h, x : x + w]
 
+    # Rotation causes some annoing black pixels around the object in
+    # some cases so we need to remove them. The used method is not
+    # perfect but it works for now.
     # Create a mask that only detects black pixels
     mask = cv2.inRange(cropped_image, 0, 0)
     # Find the contours of the mask
@@ -208,20 +211,6 @@ def get_object(
             elif y + h == img_y:
                 # Touches the bottom border so crop from the bottom
                 cropped_image = cropped_image[:h, :]
-
-            # # Check in wich corner the object is
-            # if x == 0 and y == 0:
-            #     # Top left corner
-            #     cropped_image = cropped_image[h:, w:]
-            # elif x == 0 and y + h == img_y:
-            #     # Bottom left corner
-            #     cropped_image = cropped_image[:h, w:]
-            # elif x + w == img_x and y == 0:
-            #     # Top right corner
-            #     cropped_image = cropped_image[h:, :w]
-            # elif x + w == img_x and y + h == img_y:
-            #     # Bottom right corner
-            #     cropped_image = cropped_image[:h, :w]
             else:
                 continue
 
