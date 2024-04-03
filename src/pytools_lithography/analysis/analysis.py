@@ -291,12 +291,6 @@ def fit_block_step(
         step_down, np.arange(len(data)), data, p0=[1, 10, 1]
     )
 
-    # # Check if the fit is acceptable
-    # if not np.all(np.isfinite(cov_left)) or not np.all(np.isfinite(cov_right)):
-    #     e = OptimizeWarning("The fit is not correct, the covariance matrix contains infinite values")
-    #     print(e)
-    #     raise e
-
     # Fit the curves
     fit_left = step_up(np.arange(len(data)), *popt_left)
     fit_right = step_down(np.arange(len(data)), *popt_right)

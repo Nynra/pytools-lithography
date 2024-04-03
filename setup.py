@@ -3,6 +3,12 @@ import setuptools
 with open("README.md", "r") as fh:
     long_description = fh.read()
 
+extras_require = {
+    "ocr": [
+        "easyocr"
+    ],
+}
+
 setuptools.setup(
     name="pytools_lithography",
     version="0.0.1",
@@ -19,7 +25,7 @@ setuptools.setup(
         "opencv-python",
         "pandas",
         "scipy",
-        "easyocr",
         "pytools_image_processing @ git+https://git@github.com/Nynra/pytools-image-processing.git@0.0.3#egg=pytools_image_processing"
-    ]
+    ],
+    extras_require=extras_require
 )

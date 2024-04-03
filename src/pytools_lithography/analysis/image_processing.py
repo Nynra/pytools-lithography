@@ -7,7 +7,6 @@ from pytools_image_processing.analysis import (
 from pytools_image_processing.utils import show_images, get_bounding_rect
 import numpy as np
 import cv2
-import easyocr as ocr
 
 
 def separate_objects(
@@ -330,6 +329,17 @@ class ImagePreProcessor:
             self._find_info_bar()
 
         return self._image[: self._y, :]
+    
+    def _check_ocr_import(self) -> ...:
+        """Check if the OCR package can be imported."""
+        try:
+            import easyocr as ocr
+        except ImportError:
+            raise ImportError(
+                "The easyocr package is required to use this function. "
+                "You can install it using 'pip install easyocr' or use the"
+                " 'pytools_lithography' package with the 'ocr' extra."
+            )
 
     def _check_ready_to_crop(self) -> bool:
         """Check if the info bar is found.
@@ -391,6 +401,9 @@ class ImagePreProcessor:
         tuple[float, float]
             The scale in nm/pixel and the plus minus error.
         """
+        # Check if the OCR package can be imported
+        self._check_ocr_import()
+
         # Create the OCR
         reader = ocr.Reader(["en"], gpu=False)
 
@@ -451,4 +464,7 @@ class ImagePreProcessor:
         tuple[float, float]
             The scale in nm/pixel and the plus minus error.
         """
+        # Check if the OCR package can be imported
+        self._check_ocr_import()
+        
         raise NotImplementedError("This function is not implemented yet")
