@@ -3,7 +3,7 @@ from .image_processing import (
     get_object,
     ImagePreProcessor
 )
-from .sem_analysis import (
+from .analysis import (
     fit_block_step,
     extract_profiles,
     calculate_profile_psd,
