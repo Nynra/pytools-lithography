@@ -3,9 +3,6 @@ import setuptools
 with open("README.md", "r") as fh:
     long_description = fh.read()
 
-with open("requirements.txt", "r") as fh:
-    install_requires = fh.read().splitlines()
-
 setuptools.setup(
     name="pytools_lithography",
     version="0.0.1",
@@ -16,5 +13,13 @@ setuptools.setup(
     long_description_content_type="text/markdown",
     py_modules=["pytools_image_lithography"],
     package_dir={"": "src"},
-    install_requires=install_requires,
+    install_requires=[
+        "matplotlib",
+        "numpy",
+        "opencv-python",
+        "pandas",
+        "scipy",
+        "easyocr",
+        "pytools_image_processing @ git+https://git@github.com/Nynra/pytools-image-processing.git@0.0.3#egg=pytools_image_processing"
+    ]
 )

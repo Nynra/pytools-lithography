@@ -231,7 +231,7 @@ def condense_line(img: np.ndarray, show_steps: bool = False) -> np.ndarray:
 
 def fit_block_step(
     data: np.ndarray, invert_step: bool = False, show_steps: bool = False, verbose=False
-) -> tuple[np.ndarray, float, float]:
+) -> tuple[float, float]:
     """Fit a block step function to the data.
 
     While the function works most of the time it is not perfect. The function
@@ -252,8 +252,8 @@ def fit_block_step(
 
     Returns
     -------
-    tuple[np.ndarray, float, float]
-        The fitted data and the half height on the left and right side.
+    tuple[float, float]
+        The half height on the left and right side of the step.
 
     Raises
     ------
@@ -382,26 +382,49 @@ def fit_block_step(
         plt.legend()
         plt.show()
 
-    return fit, h_left, h_right
+    return h_left, h_right
 
 
 def extract_profiles(
     image: np.ndarray,
+    crop_margin: float = 0.05,
     fitter: callable = fit_block_step,
     accepted_failure: float = 0.20,
+    correct_offsets: bool = True,
     show_steps: bool = False,
     verbose: bool = False,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Extracts the intensity profiles for each column in the image.
 
+    The profiles are extracted by fitting a step function to each column in the
+    image. In the case of a vertical line the image will be transposed to make
+    sure the longest axis is on the horizontal. The left and right edge of the
+    step are determined by the half height of the step.
+
+    .. note::
+
+        A custom function can be used long as the signature is the same as
+        fit_block_step. Meaning, the function should take the data and return
+        the left and right edge of the step. The function should also be able
+        to handle the invert_step parameter. To allow for errors to occur when
+        fitting the function should raise an OptimizeWarning if the fit is not
+        correct.
+
     Parameters
     ----------
     image : np.ndarray
         The image to extract the profiles from.
+    crop_margin : float, optional
+        The area on the left and right side of the image that will be cropped
+        off. This is to make sure that the ends of the lines in the image do not
+        influence the fitting. The default is 0.05, meaning 5% on each side.
     fitter : callable, optional
         The function to fit the step function. The default is fit_block_step.
     accepted_failure : float, optional
         The maximum failure rate for the fitting function, by default 0.20.
+    correct_offsets : bool, optional
+        If the offsets should be corrected, by default True. This will make the
+        average of the profiles zero.
     show_steps : bool, optional
         If the fitting steps should be shown, by default False.
     verbose : bool, optional
@@ -425,6 +448,14 @@ def extract_profiles(
         raise ValueError(
             "The image must be a grayscale image not shape {}".format(image.shape)
         )
+    if not isinstance(crop_margin, float):
+        raise TypeError(
+            "The crop margin must be a float not type {}".format(type(crop_margin))
+        )
+    if 2 * crop_margin >= 1:
+        raise ValueError(
+            "The crop margin must be smaller than 0.5 not {}".format(crop_margin)
+        )
     if not callable(fitter):
         raise TypeError(
             "The fitter must be a callable function not type {}".format(type(fitter))
@@ -443,6 +474,10 @@ def extract_profiles(
         raise TypeError(
             "The verbose must be a boolean not type {}".format(type(verbose))
         )
+    
+    # Crop the image to remove the ends
+    crop = int(crop_margin * image.shape[1])
+    image = image[:, crop:-crop]
 
     # Fit the step function
     left, right = [], []  # The left and right edge of the object
@@ -456,8 +491,8 @@ def extract_profiles(
     for i in range(0, image.shape[1], 1):
         profile = image[:, i].transpose()
         try:
-            _, l, r = fitter(
-                profile, show_steps=False, invert_step=True, verbose=verbose
+            l, r = fitter(
+                profile, invert_step=True, verbose=verbose
             )
         except (OptimizeWarning, RuntimeError) as e:
             # This is very bad practice but that is an issue for another time
@@ -475,17 +510,21 @@ def extract_profiles(
     width_array = right_array - left_array
 
     # Correct the offsets so the average of the profiles is zero
-    left_array = left_array - np.mean(left_array)
-    right_array = right_array - np.mean(right_array)
+    if correct_offsets:
+        left_array = left_array - np.mean(left_array)
+        right_array = right_array - np.mean(right_array)
+        width_array = width_array - np.mean(width_array)
 
     if show_steps:
+        # Show the image and the profiles
         plt.subplot(121)
-        plt.plot(left_array)
-        plt.title("Left edge")
+        plt.imshow(image, cmap="gray")
+        plt.title("Image")
         plt.subplot(122)
-        plt.plot(right_array)
-        plt.title("Right edge")
-        plt.show()
+        plt.plot(left_array, label="Left edge")
+        plt.plot(right_array, label="Right edge")
+        plt.plot(width_array, label="Width")
+        plt.legend()
 
     return left_array, right_array, width_array
 
