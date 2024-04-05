@@ -6,9 +6,19 @@ This Jupyter Notebook was crafted as part of my Minor in Microtecnology, Process
 
 ## Installation
 
+### Prerequisites
+
+The following software needs to be installed before installing the python package.
+
+* git
+* python (version above 3.10)
+
+### Steps
+
 The easiest way to use the code is by downloading the repo and using the example notebook.
 
 ```bash
+# This code is for NON ANACONDA users
 # Clone the repo
 git clone https://github.com/Nynra/pytools-lithography.git
 cd pytools-lithography
