@@ -16,7 +16,15 @@ cd pytools-lithography
 # Create a virtual environment
 python3 -m venv .venv
 source .venv/bin/activate # Activate venv for linux
-pip install .  # Install the package
+pip install .[ocr]  # Install the package
+pip install -r requirements.txt  # Otherwiser there will be some dependancy issues
+```
+
+By default the package does not install the easyocr library to save space. This means that automatic scale determination is not possible in the default package and an error will be raised if you try to use it in the default config. To install the extra needed dependancies the options argument can be used during package install (or if you want to update the existing installed package) using the following commands.
+
+```bash
+# Install the optional OCR dependancies
+pip install .[ocr]
 ```
 
 ## Gotchas
