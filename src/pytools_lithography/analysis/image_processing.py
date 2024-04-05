@@ -141,6 +141,76 @@ def separate_objects(
     return components, angles
 
 
+def mark_objects(image: np.ndarray, masks: list[np.ndarray]) -> np.ndarray:
+    """Mark the objects to keep track of them.
+    
+    During batch processing it becomes harder to keep track of the
+    different objects. This function can be used to mark the different
+    objects in the image. The objects will me marked with a bounding box
+    and a number, starting from 1 in the order of the given masks.
+    
+    Parameters
+    ----------
+    image : np.ndarray
+        The image to mark.
+    masks : list[np.ndarray]
+        The masks of the objects.
+
+    Returns
+    -------
+    np.ndarray
+        The image with the objects marked.
+    """
+    if not isinstance(image, np.ndarray):
+        raise ValueError(
+            "image should be a numpy array not type {}".format(type(image))
+        )
+    if not len(image.shape) == 2:
+        raise ValueError(
+            "image should be a grayscale image not shape {}".format(image.shape)
+        )
+    if not isinstance(masks, list):
+        raise ValueError(
+            "masks should be a list not type {}".format(type(masks))
+        )
+    if not all(isinstance(mask, np.ndarray) for mask in masks):
+        raise ValueError(
+            "masks should be a list of numpy arrays not {}".format(
+                [type(mask) for mask in masks]
+            )
+        )
+    if not all(mask.shape == image.shape for mask in masks):
+        raise ValueError(
+            "masks should have the same shape as the image not {}".format(
+                [mask.shape for mask in masks]
+            )
+        )
+
+    # Create a copy of the image
+    marked_image = image.copy()
+
+    # Draw the masks on the image
+    for i, mask in enumerate(masks):
+        # Get the bounding box of the mask
+        box, (x, y, w, h, angle) = get_bounding_rect(mask)
+
+        # Draw the bounding box using the point box so it is rotated
+        cv2.polylines(marked_image, [box], isClosed=True, color=255, thickness=2)
+
+        # Draw the number of the object
+        cv2.putText(
+            marked_image,
+            str(i + 1),
+            (x, y),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            1,
+            255,
+            thickness=2,
+        )
+
+    return marked_image
+        
+
 def get_object(
     image: np.ndarray, mask: np.ndarray, dil_iter: int = 10, show_steps: bool = False
 ) -> np.ndarray:

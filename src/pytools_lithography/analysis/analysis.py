@@ -2,6 +2,7 @@ import numpy as np
 import cv2
 import matplotlib.pyplot as plt
 from scipy.optimize import curve_fit, OptimizeWarning
+import os
 
 
 def calculate_profile_psd(
@@ -595,3 +596,41 @@ def find_object_edges(
         plt.show()
 
     return left_edge, right_edge
+
+
+class BatchProcessor:
+    """Process a batch of images.
+    
+    The batch processor is used to process a batch of images. The processor
+    will extract the profiles from the images and calculate the PSD of the
+    profiles. The profiles, PSD and some parameters are saved in a dictionary.
+
+    A dictionary will be generated for each image in the batch. The dictionary
+    will contain the following keys:
+    {
+        "<object_nr>": {
+            "origin_image": str,
+            "offset_corrected": bool,
+            "top_profile": np.ndarray,
+            "bottom_profile": np.ndarray,
+            "width_profile": np.ndarray,
+    }
+
+    An entry will be generated for each object in the image, for each image a dict
+    will be generated. The dict will be saved in a json file with the image filename.
+    To keep track of which object is which a marked image will also be saved.
+    """
+
+    def __init__(self, folder_name: str) -> ...:
+        """Initialize the batch processor.
+
+        Parameters
+        ----------
+        folder_name : str
+            The folder name where the images are stored.
+        """
+        self._folder_name = folder_name
+
+
+
+        

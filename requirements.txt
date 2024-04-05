@@ -3,5 +3,5 @@ numpy
 opencv-python
 pandas
 scipy
-easyocr
+easyocr[ocr]
 -e git+https://github.com/Nynra/pytools-image-processing.git@0.0.3#egg=pytools_image_processing
