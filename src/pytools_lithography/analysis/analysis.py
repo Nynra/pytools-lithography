@@ -511,15 +511,20 @@ def extract_profiles(
         width_array = width_array - np.mean(width_array)
 
     if show_steps:
-        # Show the image and the profiles
-        plt.subplot(121)
+        # Show the image and the profiles in 4 seperate plots
+        plt.subplot(221)
         plt.imshow(image, cmap="gray")
         plt.title("Image")
-        plt.subplot(122)
-        plt.plot(left_array, label="Left edge")
-        plt.plot(right_array, label="Right edge")
-        plt.plot(width_array, label="Width")
-        plt.legend()
+        plt.subplot(222)
+        plt.plot(left_array)
+        plt.title("Left edge")
+        plt.subplot(223)
+        plt.plot(right_array)
+        plt.title("Right edge")
+        plt.subplot(224)
+        plt.plot(width_array)
+        plt.title("Width")
+        plt.show()
 
     return left_array, right_array, width_array
 
@@ -596,40 +601,6 @@ def find_object_edges(
         plt.show()
 
     return left_edge, right_edge
-
-
-class BatchProcessor:
-    """Process a batch of images.
-    
-    The batch processor is used to process a batch of images. The processor
-    will extract the profiles from the images and calculate the PSD of the
-    profiles. The profiles, PSD and some parameters are saved in a dictionary.
-
-    A dictionary will be generated for each image in the batch. The dictionary
-    will contain the following keys:
-    {
-        "<object_nr>": {
-            "origin_image": str,
-            "offset_corrected": bool,
-            "top_profile": np.ndarray,
-            "bottom_profile": np.ndarray,
-            "width_profile": np.ndarray,
-    }
-
-    An entry will be generated for each object in the image, for each image a dict
-    will be generated. The dict will be saved in a json file with the image filename.
-    To keep track of which object is which a marked image will also be saved.
-    """
-
-    def __init__(self, folder_name: str) -> ...:
-        """Initialize the batch processor.
-
-        Parameters
-        ----------
-        folder_name : str
-            The folder name where the images are stored.
-        """
-        self._folder_name = folder_name
 
 
 

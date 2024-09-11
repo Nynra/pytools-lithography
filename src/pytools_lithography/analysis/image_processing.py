@@ -9,10 +9,35 @@ import numpy as np
 import cv2
 
 
+def invert_image(image: np.ndarray) -> np.ndarray:
+    """Invert the image.
+
+    Parameters
+    ----------
+    image : np.ndarray
+        The image to invert.
+
+    Returns
+    -------
+    np.ndarray
+        The inverted image.
+    """
+    if not isinstance(image, np.ndarray):
+        raise ValueError(
+            "image should be a numpy array not type {}".format(type(image))
+        )
+    
+    if len(image.shape) == 2:
+        return 255 - image
+    else:
+        return cv2.bitwise_not(image)
+    
+
 def separate_objects(
     image: np.ndarray,
     normalize: bool = True,
     mask_range: tuple[float] = (0.05, 0.8),
+    invert_image: bool = False,
     dilate_iterations: int = 30,
     show_steps: bool = False,
 ) -> tuple[list[np.ndarray], list[float]]:
@@ -20,7 +45,20 @@ def separate_objects(
     Separate objects in a SEM image.
 
     This function takes a grayscale image and returns a list of images
-    with the separated objects.
+    with the separated objects. The function finds the object by using a
+    Gaussian blur and a OTSU threshold. During OTSU thresholding a lot
+    of noise will be found so these are removed by defining a minimum
+    and maximum size of the components. The components are then dilated
+    to make sure the whole object is included in the cropped image.
+
+    .. attention::
+
+        This function assumes that the line profile is higher than the
+        substrate around the lines. This means that when only development 
+        is done the reverse will be true and the lines will be lower than
+        the substrate. This will cause the function to either fail or
+        see the space between the lines as the line (in the case of a pre
+        cropped image)
 
     Parameters
     ----------
@@ -34,6 +72,9 @@ def separate_objects(
         The range of the mask size in percentage of the image size.
         The default is (0.05, 0.5) meaning the mask should be between
         5% and 50% of the image size.
+    invert_image : bool, optional
+        If True, invert the image. The default is False. This is useful
+        when the lines are lower than the substrate.
     dilate_iterations : int, optional
         The number of iterations to dilate the mask. The default is 30.
         The mask is dilated to make sure the whole object is included in the
@@ -99,6 +140,8 @@ def separate_objects(
     else:
         norm_image = image
 
+
+
     # Remove some noise and use a threshold to get the line positions
     norm_image = cv2.GaussianBlur(norm_image, (3, 3), 0)
     _, mask = cv2.threshold(image, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
@@ -141,25 +184,31 @@ def separate_objects(
     return components, angles
 
 
-def mark_objects(image: np.ndarray, masks: list[np.ndarray]) -> np.ndarray:
+def mark_objects(
+    image: np.ndarray, masks: list[np.ndarray], start_id: int, show_steps: bool = False
+) -> tuple[np.ndarray, list[np.ndarray]]:
     """Mark the objects to keep track of them.
-    
+
     During batch processing it becomes harder to keep track of the
     different objects. This function can be used to mark the different
     objects in the image. The objects will me marked with a bounding box
     and a number, starting from 1 in the order of the given masks.
-    
+
     Parameters
     ----------
     image : np.ndarray
         The image to mark.
     masks : list[np.ndarray]
         The masks of the objects.
+    start_id : int
+        The number to start counting from.
+    show_steps : bool, optional
+        If True, show the steps of the calculation. The default is False.
 
     Returns
     -------
-    np.ndarray
-        The image with the objects marked.
+    tuple[np.ndarray, list[np.ndarray]]
+        The marked image and list of ID's.
     """
     if not isinstance(image, np.ndarray):
         raise ValueError(
@@ -170,9 +219,7 @@ def mark_objects(image: np.ndarray, masks: list[np.ndarray]) -> np.ndarray:
             "image should be a grayscale image not shape {}".format(image.shape)
         )
     if not isinstance(masks, list):
-        raise ValueError(
-            "masks should be a list not type {}".format(type(masks))
-        )
+        raise ValueError("masks should be a list not type {}".format(type(masks)))
     if not all(isinstance(mask, np.ndarray) for mask in masks):
         raise ValueError(
             "masks should be a list of numpy arrays not {}".format(
@@ -185,11 +232,20 @@ def mark_objects(image: np.ndarray, masks: list[np.ndarray]) -> np.ndarray:
                 [mask.shape for mask in masks]
             )
         )
+    if not isinstance(start_id, int):
+        raise ValueError(
+            "start_id should be an integer not type {}".format(type(start_id))
+        )
+    if not isinstance(show_steps, bool):
+        raise ValueError(
+            "show_steps should be a boolean not type {}".format(type(show_steps))
+        )
 
     # Create a copy of the image
     marked_image = image.copy()
 
     # Draw the masks on the image
+    ids = []
     for i, mask in enumerate(masks):
         # Get the bounding box of the mask
         box, (x, y, w, h, angle) = get_bounding_rect(mask)
@@ -198,18 +254,25 @@ def mark_objects(image: np.ndarray, masks: list[np.ndarray]) -> np.ndarray:
         cv2.polylines(marked_image, [box], isClosed=True, color=255, thickness=2)
 
         # Draw the number of the object
+        id = str(start_id + i + 1)
         cv2.putText(
             marked_image,
-            str(i + 1),
+            id,
             (x, y),
             cv2.FONT_HERSHEY_SIMPLEX,
             1,
             255,
             thickness=2,
         )
+        ids.append(id)
 
-    return marked_image
-        
+
+    if show_steps:
+        images = {"Marked image": marked_image}
+        show_images(images)
+
+    return marked_image, ids
+
 
 def get_object(
     image: np.ndarray, mask: np.ndarray, dil_iter: int = 10, show_steps: bool = False
@@ -295,246 +358,4 @@ def get_object(
     return cropped_image
 
 
-class ImagePreProcessor:
-    """Preprocess the SEM image.
-
-    This class is used to preprocess the SEM image. It can separate the info bar
-    from the image and determine the scale of the image.
-
-    .. warning::
-
-        This is by now means a general class and should not be used for
-        images that are not from the MPD lab.
-    """
-    # Initial height guess for the info bar
-    _height = 0.10
-
-    # Bounding box of the info bar
-    _x = None
-    _y = None
-    _w = None
-    _h = None
-
-    def __init__(self, image: np.ndarray) -> ...:
-        """Initialize the ImagePreProcessor class.
-
-        Parameters
-        ----------
-        image : np.ndarray
-            The raw SEM image.
-        """
-        if not isinstance(image, np.ndarray):
-            raise ValueError(
-                "image should be a numpy array not type {}".format(type(image))
-            )
-        if not len(image.shape) == 2:
-            raise ValueError(
-                "image should be a grayscale image not shape {}".format(image.shape)
-            )
-        self._image = image
-
-    def get_scale(
-        self, method: str = "dynamic"
-    ) -> tuple[float, float]:
-        """Determine the number of nm/pixel factor from the scale bar.
-
-        This function expects a cropped scale bar from the SEM in the MPD
-        lab. This is in now way a generalized function and should not be used
-        for other images. The cropped scale bar is complete bottom part of
-        the image with a horizontal cut where the image begins.
-
-        Parameters
-        ----------
-        method : str, optional
-            The method to use to determine the scale, this can be dynamic or static.
-            When dynamic is chosen the scale is determined by the number on the left
-            side of the scale bar. When static is chosen the scale is determined by
-            the number on the right side of the scale bar. The default is dynamic.
-
-        Returns
-        -------
-        tuple[float, float]
-            The scale in nm/pixel and the plus minus error.
-        """
-        if not isinstance(method, str):
-            raise ValueError("method should be a string not type {}".format(type(method)))
-        method = method.lower()
-        if not method in ["dynamic", "static"]:
-            raise ValueError(
-                "method should be either dynamic or static not {}".format(method)
-            )
-        if not self._check_ready_to_crop():
-            self._find_info_bar()
-
-        # Get the scale from the image
-        if method == "dynamic":
-            scale, pm = self._get_dynamic_scale()
-        elif method == "static":
-            scale, pm = self._get_static_scale()
-
-        return scale, pm
-
-    def get_info_bar(self) -> np.ndarray:
-        """Get the info bar from the image.
-
-        Returns
-        -------
-        np.ndarray
-            The info bar.
-        """
-        if not self._check_ready_to_crop():
-            self._find_info_bar()
-
-        return self._image[self._y : self._y + self._h, self._x : self._x + self._w]
-
-    def get_image(self) -> np.ndarray:
-        """Get the image without the info bar.
-
-        Returns
-        -------
-        np.ndarray
-            The image without the info bar.
-        """
-        if not self._check_ready_to_crop():
-            self._find_info_bar()
-
-        return self._image[: self._y, :]
-    
-    def _check_ocr_import(self) -> ...:
-        """Check if the OCR package can be imported."""
-        try:
-            import easyocr as ocr
-        except ImportError:
-            raise ImportError(
-                "The easyocr package is required to use this function. "
-                "You can install it using 'pip install easyocr' or use the"
-                " 'pytools_lithography' package with the 'ocr' extra."
-            )
-
-    def _check_ready_to_crop(self) -> bool:
-        """Check if the info bar is found.
-
-        Returns
-        -------
-        bool
-            True if the info bar is found, False otherwise.
-        """
-        if None in [self._x, self._y, self._w, self._h]:
-            return False
-        return True
-
-    def _find_info_bar(self) -> ...:
-        """Find the info bar in the image.
-
-        The info bar is assumed to be a straight black bar at the bottom of the image.
-        The function will search for the biggest black contour at the bottom of the image
-        and use this as the info bar.
-
-        Raises
-        ------
-        ValueError
-            If no valid info bar is found in the image.
-        """
-        # Get the image dimensions
-        img_x, img_y = self._image.shape
-
-        # Get the height of the scale bar
-        scale_height = int(img_y * self._height)
-
-        # Get the scale bar from the bottom of the image
-        scale_bar = self._image[-scale_height:, :]
-
-        # Search for the biggest black contour
-        mask = cv2.inRange(scale_bar, 0, 0)
-        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        
-        if len(contours) == 0:
-            raise ValueError("No valid info bar found in the image!")
-        
-        # Get the bounding box of the biggest contours
-        x, y, w, h = cv2.boundingRect(contours[0])
-
-        # Store the bounding box of the info bar
-        self._x = x
-        self._y = img_y
-        self._w = w
-        self._h = h
-
-    def _get_dynamic_scale(self) -> tuple[float, float]:
-        """Get the scale of the image using the dynamic scale bar.
-
-        The dynamic scale is calculated by the number on the left side of the
-        scale bar and the length of the scale bar.
-
-        Returns
-        -------
-        tuple[float, float]
-            The scale in nm/pixel and the plus minus error.
-        """
-        # Check if the OCR package can be imported
-        self._check_ocr_import()
-
-        # Create the OCR
-        reader = ocr.Reader(["en"], gpu=False)
-
-        # How big of a 'cut-out' do we make from the left corner in the up and right  direction
-        DYNAMIC_SCALE_IMG_DIMENSIONS = 95
-
-        # Crop a copy of the image to the size of the number
-        scale_text_img = self._image.copy()[:, :DYNAMIC_SCALE_IMG_DIMENSIONS]
-
-        # We use detail = 0 to just get the text, we dont care for the other info
-        scale_str = reader.readtext(scale_text_img, detail=0)[0]
-        
-        for char in scale_str:
-            if not char.isdigit():
-                scale_str = scale_str.replace(char, "")
-
-        # Check if the scale str contains only numbers
-        if not scale_str.isdigit():
-            raise ValueError(
-                "The scale string should only contain numbers, it now says {}".format(
-                    scale_str
-                )
-            )
-
-        scale_int = int(scale_str)
-
-        # Now we have the number, time to find out how long the bar is
-        SCALE_BAR_START = 200
-        SCALE_BAR_END = 1250
-        scale_bar_img = self._image[:, SCALE_BAR_START:SCALE_BAR_END]
-
-        # Use the Canny edge detection to find the edges
-        edges = cv2.Canny(scale_bar_img, 50, 150, apertureSize=3)
-        lines = cv2.HoughLinesP(
-            edges,  # Input edge image
-            1,  # Distance resolution in pixels
-            np.pi / 180,  # Angle resolution in radians
-            threshold=100,  # Min number of votes for valid line
-            minLineLength=5,  # Min allowed length of line
-            maxLineGap=10,  # Max allowed gap between line for joining them
-        )
-        bar_size = int(lines[0][0][2] - lines[0][0][0])
-
-        # Calculate the scale
-        scale = scale_int / bar_size
-        pm = (scale_int / (bar_size - 1)) - scale
-
-        return scale, pm
-
-    def _get_static_scale(self) -> tuple[float, float]:
-        """Get the scale of the image using the static scale bar.
-
-        The static scale is calculated by the number on the right side of the
-        scale bar and the width of the image.
-
-        Returns
-        -------
-        tuple[float, float]
-            The scale in nm/pixel and the plus minus error.
-        """
-        # Check if the OCR package can be imported
-        self._check_ocr_import()
-        
-        raise NotImplementedError("This function is not implemented yet")
+  
