@@ -1,0 +1,3 @@
+[submodule "pytools-image-processing"]
+	path = pytools-image-processing
+	url = https://github.com/Nynra/pytools-image-processing

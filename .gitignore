@@ -10,6 +10,7 @@ onedrive_thomas
 images_ref
 dev
 html
+unused
 
 # C extensions
 *.so

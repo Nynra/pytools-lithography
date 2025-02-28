@@ -1,8 +1,0 @@
-matplotlib
-numpy
-opencv-python
-pandas
-scipy
-easyocr[ocr]
-klayout
--e git+https://github.com/Nynra/pytools-image-processing.git@0.0.3#egg=pytools_image_processing

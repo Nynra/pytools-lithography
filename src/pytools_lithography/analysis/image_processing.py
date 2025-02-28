@@ -158,7 +158,7 @@ def separate_objects(
         min_size=min_size,
         max_size=max_size,
         show_steps=False,
-        crop_components=False,
+        # crop_components=False,
     )
     if len(components) == 0:
         raise ValueError("No components found in the mask!")
