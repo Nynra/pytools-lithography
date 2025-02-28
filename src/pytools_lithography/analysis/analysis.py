@@ -3,6 +3,8 @@ import cv2
 import matplotlib.pyplot as plt
 from scipy.optimize import curve_fit, OptimizeWarning
 import os
+from pytools_image_processing.analysis import get_bounding_rect
+from typing import Tuple
 
 
 def calculate_profile_psd(

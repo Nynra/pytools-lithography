@@ -1,13 +1,12 @@
 import os
 import cv2
 import numpy as np
-from pytools_image_processing.utils import show_images
-from .image_processing import (
-    get_bounding_rect,
-    get_object,
+# from pytools_image_processing.utils import show_images
+from pytools_image_processing.analysis import (
     separate_objects,
     mark_objects,
 )
+from typing import Union, Tuple
 
 try:
     import easyocr as ocr
