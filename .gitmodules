@@ -1,3 +1,6 @@
-[submodule "pytools-image-processing"]
-	path = pytools-image-processing
-	url = https://github.com/Nynra/pytools-image-processing
+[submodule "pytools-litho-design"]
+	path = pytools-litho-design
+	url = https://github.com/Nynra/pytools-litho-design
+[submodule "pytools-litho-analysis"]
+	path = pytools-litho-analysis
+	url = https://github.com/Nynra/pytools-litho-analysis

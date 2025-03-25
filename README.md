@@ -6,26 +6,7 @@ This Jupyter Notebook was crafted as part of my Minor in Microtecnology, Process
 
 ## Package Structure
 
-The package is structured as follows:
-
-```bash
-pytools_lithography
-├── analysis  # Module for all the analysis code
-│   ├── legacy  # Old code that is not used anymore but still here for reference
-│   ├── __init__.py
-│   ├── analysis.py  # Main analysis functions
-│   ├── batch_processing.py  # Functions to process multiple images at once
-│   ├── image_processing.py  # Functions to process images
-├── design  # Module for the design code (gdsfactory)
-│   ├── __init__.py
-│   ├── elektronics  # Module for elektronics design
-│   ├── optics  # Module for optics design
-│   ├── templates  # Module general templates
-│   ├── routing.py  # Functions to route the design
-│   ├── calibration.py  # Functions to calibrate the design
-│   ├── tekst.py  # Functions to add text to the design
-├── __init__.py
-```
+As this package is just a wrapper for `pytools-litho-design` and `pytools-litho-analysis`, this module only contains an `__init__.py` file. The actual code is in the respective repositories.
 
 ## Installation
 
