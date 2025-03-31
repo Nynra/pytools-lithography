@@ -4,3 +4,6 @@
 [submodule "pytools-litho-analysis"]
 	path = pytools-litho-analysis
 	url = https://github.com/Nynra/pytools-litho-analysis
+[submodule "python-dev-intro"]
+	path = python-dev-intro
+	url = https://github.com/Nynra/python-dev-intro
